@@ -1,0 +1,58 @@
+# =============== #
+# Unity generated #
+# =============== #
+Temp/
+Obj/
+UnityGenerated/
+ProjectSettings/ProjectVersion.txt
+Library/
+Assets/AssetBundleOut/
+Assets/StreamingAssets/
+UIElementsSchema/
+
+# ===================================== #
+# Visual Studio / MonoDevelop generated #
+# ===================================== #
+ExportedObj/
+.vs/
+*.svd
+*.userprefs
+*.csproj
+*.pidb
+*.suo
+*.sln
+*.user
+*.unityproj
+*.booproj
+
+# ============ #
+# OS generated #
+# ============ #
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ===================================== #
+# Nintendo Swith generated              #
+# ===================================== #
+Logs/
+SwitchIL2CPPCache/
+SwitchIL2CPPStats/
+*.nspd/
+*.nsp
+*.nspd_root
+ReApplyNMetaFile.bat
+# Application.aarch64.lp64.nmeta
+
+# ============ #
+# for others   #
+# ============ #
+
+*.log #log files, for some plugins
+*.pyc #python bytecode cache, for some plugins.
+sysinfo.txt #Unity3D Generated File On Crash Reports
