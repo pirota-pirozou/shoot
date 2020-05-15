@@ -30,6 +30,14 @@ cmp_mw	.macro
 		sbc	(\2)+1
 		.endm
 
+mov_mw	.macro
+		clc
+		lda	(\2)
+		sta (\1)
+		lda	(\2)+1
+		sta (\1)+1
+		.endm
+
 add_iw	.macro
 		clc
 		lda	<(\1)
@@ -39,6 +47,8 @@ add_iw	.macro
 		adc #HIGH(\2)
 		sta <(\1)+1
 		.endm
+
+
 
 add_zw	.macro
 		clc
@@ -129,6 +139,18 @@ TESTVAL	.ds	3				; 文字列
 ;	.ds	$500			; これがワークRAM全部！少ない！
 
 
+;-----------------------------------------------------
+; Code (ROM HIGH) 固定bank
+;-----------------------------------------------------
+	.code
+	.bank 1
+
+; 割り込みベクタ
+	.org    $FFFA           ; $FFFA から開始
+
+	.word	Vblank_int
+	.word	RESET
+	.word	$0000
 
 ;-----------------------------------------------------
 ; Code (ROM LOW)
@@ -139,15 +161,24 @@ TESTVAL	.ds	3				; 文字列
 	.org $8000
 
 RESET:
-	sei
-	ldx	#$ff
-	txs
+    sei        ; ignore IRQs
+    cld        ; disable decimal mode
+    ldx #$40
+    stx $4017  ; disable APU frame IRQ
+    ldx #$ff
+    txs        ; Set up stack
+    inx        ; now X = 0
+    stx $2000  ; disable NMI
+    stx $2001  ; disable rendering
+    stx $4010  ; disable DMC IRQs
+
+	jsr	vsync			; VSync待ち
 
 ; スクリーンオフ
-    lda #%00010000      ; 初期化中は VBlank 割り込み禁止
-    sta $2000
-	lda	#$00
-	sta	$2001
+;   lda #%00010000      ; 初期化中は VBlank 割り込み禁止
+;    sta $2000
+;	lda	#$00
+;	sta	$2001
 
 ; WRAM初期化 ($0000-$07FF)
 	lda	#$00
@@ -156,7 +187,6 @@ WRAMCLR:
 	ldy #$00	;256 times
 	sta	<z0
 	sta <z0+1
-;	mov_iw	z0, 0		; マクロ
 WRAMCLR_0:
 	sta	(z0)
 	inc	(z0)
@@ -164,8 +194,6 @@ WRAMCLR_0:
 	bne	WRAMCLR_0
 	dex
 	bne	WRAMCLR
-
-	jsr	vsync			; VSync待ち
 
 ; パレットテーブルへ転送(BG用のみ転送)
 	lda	#$3f
@@ -206,26 +234,6 @@ oam_clr_loop:
 	sta $2004		; スプライトデータレジスタ
 	dey
 	bne	oam_clr_loop
-
-;.ifdef 0
-; ネームテーブルへ転送(画面の中央付近)
-;	lda	#$21			; High
-;	sta	$2006
-;	lda	#$c7			; Low
-;	sta	$2006
-;	ldx	#$00
-;copymap:
-;	lda	string, x
-;	beq	copyex
-;	sec
-;	sbc #$20
-;	sta	$2007
-;	inx
-;	dey
-;	bne	copymap
-
-;copyex:
-;.endif
 
 	mov_iw	arg0,string
 	ldx	#4
@@ -274,23 +282,48 @@ oam_clr_loop:
 	ldy #13
 	jsr	PRINT
 
+
+	mov_mw _AX,TESTVAL
+	jsr	GETDEC16
+
+	mov_iw	arg0,DECSTR
+	ldx	#4
+	ldy #11
+	jsr	PRINT
+
+	; TESTVAL++ 
+	clc
+	lda	TESTVAL
+	adc #1
+	sta TESTVAL
+	lda	TESTVAL
+	adc #0
+	sta TESTVAL
+
+
 ; スクロール設定
 	lda	#$00
 	sta	$2005
 	sta	$2005
 
 ; スクリーンオン
-	lda	#$08
+	lda	#$88
 	sta	$2000
 	lda	#$1e
 	sta	$2001
 	
-;	lda	#%10010000      ; 割り込み許可
-;	sta $2000
+	CLI	; 割り込み許可
+
+
 
 stoploop:
-	jsr	get_pad0
-	jsr	vsync
+	nop
+;	jsr	get_pad0
+
+
+	;--- vsync wait ----
+;	jsr	vsync
+
 	jmp stoploop
 
 ; VSync 待ち
@@ -298,6 +331,24 @@ vsync:
 	lda     $2002
     bpl     vsync     ; VBlankが発生して $2002 の7ビット目が1になるまで待機
 	rts
+
+	;------------
+	; VBlank int
+	;------------
+Vblank_int:
+	SEI			; Disable INT
+	php
+	pha
+	; スプライト描画(DMAを利用)
+	lda #HIGH(OAMWORK)  ; OAM
+	sta $4014 ; スプライトDMAレジスタにAをストアして、スプライトデータをDMA転送する
+	
+
+
+	pla
+	plp
+	CLI			; Enable INT
+	rti
 
 
 	;-------------------------------------------------
@@ -640,19 +691,6 @@ string:
 
 
 ;-----------------------------------------------------
-; Code (ROM HIGH) 固定bank
-;-----------------------------------------------------
-	.bank 1
-;	.org	$C000
-
-
-; 割り込みベクタ
-	.org    $FFFA           ; $FFFA から開始
-
-	.word	$0000
-	.word	RESET
-	.word	$0000
-
 ;------------------------
 ; フォントデータを読み込み
 ;------------------------
