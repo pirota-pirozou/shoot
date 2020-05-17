@@ -181,19 +181,30 @@ RESET:
 ;	sta	$2001
 
 ; WRAM初期化 ($0000-$07FF)
-	lda	#$00
-	ldx #$08
-WRAMCLR:	
-	ldy #$00	;256 times
-	sta	<z0
-	sta <z0+1
-WRAMCLR_0:
-	sta	(z0)
-	inc	(z0)
-	dey
-	bne	WRAMCLR_0
-	dex
-	bne	WRAMCLR
+    ldx #0
+    txa
+clrmem:
+    sta $000,x
+    sta $100,x
+    sta $200,x
+    sta $300,x
+    sta $400,x
+    sta $500,x
+    sta $600,x
+    sta $700,x
+    inx
+    bne clrmem
+
+	; ---- OAM初期化
+	ldx	#0
+	lda	#240
+initoam:
+	sta	OAMWORK,x
+	inx
+	inx
+	inx
+	inx
+	bne initoam
 
 ; パレットテーブルへ転送(BG用のみ転送)
 	lda	#$3f
