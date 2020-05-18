@@ -82,6 +82,21 @@ sax		.macro
 		ldx	<tmp0
 		.endm
 
+; PAD Bit
+PAD_A	   = $01
+PAD_B	   = $02
+PAD_SELECT = $04
+PAD_START  = $08
+PAD_UP     = $10
+PAD_DOWN   = $20
+PAD_LEFT   = $40
+PAD_RIGHT  = $80
+
+PAD_UDLR   = $F0
+
+
+
+
 ;-----------------------------------------------------
 ; ゼロページ $0000-$00FF
 ;-----------------------------------------------------
@@ -114,6 +129,15 @@ arg1	.ds	2
 arg2	.ds	2
 arg3	.ds	2
 
+; キーの値
+GetKey		.ds	1				
+GetKey_bak	.ds	1
+GetTrg		.ds	1
+
+GetRep		.ds	1	; キー入力リピート
+RepSt		.ds	1	; キー入力リピートステート
+RepCou		.ds	1	; キー入力リピートカウンタ
+
 
 ;-----------------------------------------------------
 ; スタック $0100-$01FF
@@ -134,6 +158,7 @@ HEXSTR	.ds	4				; '00',0 Reserved
 
 ;--------------------------------------------------------------------
 TESTVAL	.ds	3				; 文字列
+
 
 
 ;	.ds	$500			; これがワークRAM全部！少ない！
@@ -236,15 +261,6 @@ nameclr_0:
 	bne	nameclr_0
 	dey
 	bne	nameclr
-
-; スプライトテーブル初期化
-	ldy	#$00
-	lda #$00
-	sta	$2003		; スプライトアドレスレジスタ
-oam_clr_loop:
-	sta $2004		; スプライトデータレジスタ
-	dey
-	bne	oam_clr_loop
 
 	mov_iw	arg0,string
 	ldx	#4
@@ -350,12 +366,99 @@ Vblank_int:
 	SEI			; Disable INT
 	php
 	pha
+	txa
+	pha
+	tya
+	pha
 	; スプライト描画(DMAを利用)
 	lda #HIGH(OAMWORK)  ; OAM
 	sta $4014 ; スプライトDMAレジスタにAをストアして、スプライトデータをDMA転送する
-	
+
+;	パッド入力
+;    tmppad = GetKey;
+;    GetTrg = ~GetKey_bak & tmppad;
+;    GetKey_bak = tmppad;
+	jsr	get_pad0
+	sta <GetKey
+	sta	<tmp0
+
+	lda <GetKey_bak
+	eor	#255
+	and	<tmp0
+	sta <GetTrg
+
+;      // リピート取得
+;      tmppad = GetKey & PAD_UDLR;
+;      if (tmppad == 0) {
+;        // 方向キーが離れた場合
+;        RepSt = 0;
+;        GetRep = 0;
+;      } else {
+;        if (RepSt == 0) {
+;          GetRep = GetKey;
+;          RepCou = 15;            // リピート初期タイム
+;          RepSt++;
+;      } else {
+;        if ((--RepCou)<=0) {
+;          GetRep = GetKey;
+;          RepCou = 2;           // リピート継続タイム
+;        } else {
+;          GetRep = 0;
+;        }
+;      }
+;      }
+
+	; リピート処理
+	and	#PAD_UDLR
+	bne pad_touch
+
+	; キーが離れる
+	ldx	#0
+	stx <RepSt
+	stx <GetRep
+	jmp pad_touch_ex
+
+pad_touch:
+	ldx <RepSt
+	bne pad_touch_0
+
+	; 初期リピート
+	lda <GetKey
+	sta <GetRep			; GetRep = GetKey
+	lda	#15				; リピート初期タイム
+	sta	<RepCou
+	inc	<RepSt
+	jmp pad_touch_ex
+
+pad_touch_0	
+	; 二次リピート
+	ldx	<RepCou
+	dex
+	beq	pad_touch_1
+
+	lda <GetKey
+	sta <GetRep			; GetRep = GetKey
+	lda	#2				; リピートタイム
+	sta	<RepCou
+
+	jmp	pad_touch_ex
+
+pad_touch_1:
+	; キー入力なかったことに
+	lda	#0
+	sta	<GetRep
+
+	; リピート処理を終了
+pad_touch_ex:
 
 
+
+
+Vblank_exit:
+	pla
+	tay
+	pla
+	tax
 	pla
 	plp
 	CLI			; Enable INT
