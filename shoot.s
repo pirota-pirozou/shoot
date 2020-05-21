@@ -138,6 +138,9 @@ GetRep		.ds	1	; キー入力リピート
 RepSt		.ds	1	; キー入力リピートステート
 RepCou		.ds	1	; キー入力リピートカウンタ
 
+; random seed
+rng_zp_low	.ds	1
+rng_zp_high	.ds	1
 
 ;-----------------------------------------------------
 ; スタック $0100-$01FF
@@ -230,6 +233,12 @@ initoam:
 	inx
 	inx
 	bne initoam
+
+	; seeding
+	lda #1 ; seed, can be anything except 0
+	sta rng_zp_low
+	lda #0
+	sta rng_zp_high
 
 ; パレットテーブルへ転送(BG用のみ転送)
 	lda	#$3f
@@ -790,6 +799,22 @@ gethex_lp1:
 
 hextbl:
 	.byte	"0123456789ABCDEF"
+
+	; ---- 乱数...
+	; http://www.retroprogramming.com/2017/07/xorshift-pseudorandom-numbers-in-z80.html
+random:
+	lda <rng_zp_high
+	lsr	a
+	lda <rng_zp_low
+	ror	a
+	eor <rng_zp_high
+	sta <rng_zp_high 	; high part of x ^= x << 7 done
+	ror a				; A has now x >> 9 and high bit comes from low byte
+	eor <rng_zp_low
+	sta <rng_zp_low 	; x ^= x >> 9 and the low part of x ^= x << 7 done
+	eor <rng_zp_high
+	sta <rng_zp_high 	; x ^= x << 8 done
+	rts
 
 ; パレットテーブル
 palettes:
